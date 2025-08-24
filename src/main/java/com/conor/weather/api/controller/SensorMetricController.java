@@ -38,4 +38,21 @@ public class SensorMetricController {
     public List<SensorMetric> all() {
         return repo.findAll();
     }
+
+
+    @GetMapping("/query")
+    public List<SensorMetric> query(
+            @RequestParam Long sensorId,
+            @RequestParam String metricType,
+            @RequestParam LocalDateTime start,
+            @RequestParam LocalDateTime end
+    ) {
+        return repo.findBySensorIdAndMetricTypeAndTimestampBetween(
+                sensorId,
+                metricType.trim().toLowerCase(),
+                start,
+                end
+        );
+    }
+
 }
