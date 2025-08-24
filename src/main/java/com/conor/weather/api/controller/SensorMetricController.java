@@ -3,6 +3,7 @@ package com.conor.weather.api.controller;
 import com.conor.weather.api.model.SensorMetric;
 import com.conor.weather.api.repository.SensorMetricRepository;
 import jakarta.validation.Valid;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -13,8 +14,12 @@ import java.util.List;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import org.springframework.validation.annotation.Validated;
+
+
 
 @RestController
+@Validated
 @RequestMapping("/api/metrics")
 public class SensorMetricController {
 
@@ -24,18 +29,23 @@ public class SensorMetricController {
         this.repo = repo;
     }
 
+    private static final Set<String> ALLOWED_METRICS =
+            Set.of("temperature","humidity","wind_speed");
+
     @PostMapping
-    public ResponseEntity<SensorMetric> create(@Valid @RequestBody SensorMetric metric) {
-        // defaults + normalization
-        if (metric.getTimestamp() == null) {
-            metric.setTimestamp(LocalDateTime.now());
-        }
+    public ResponseEntity<?> create(@Valid @RequestBody SensorMetric metric) {
+        if (metric.getTimestamp() == null) metric.setTimestamp(LocalDateTime.now());
         if (metric.getMetricType() != null) {
-            metric.setMetricType(metric.getMetricType().trim().toLowerCase());
+            String normalized = metric.getMetricType().trim().toLowerCase();
+            if (!ALLOWED_METRICS.contains(normalized)) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error","metricType must be one of " + ALLOWED_METRICS));
+            }
+            metric.setMetricType(normalized);
         }
-        SensorMetric saved = repo.save(metric);
-        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+        return ResponseEntity.status(HttpStatus.CREATED).body(repo.save(metric));
     }
+
 
     @GetMapping
     public List<SensorMetric> all() {
@@ -47,8 +57,8 @@ public class SensorMetricController {
     public List<SensorMetric> query(
             @RequestParam Long sensorId,
             @RequestParam String metricType,
-            @RequestParam LocalDateTime start,
-            @RequestParam LocalDateTime end
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end
     ) {
         return repo.findBySensorIdAndMetricTypeAndTimestampBetween(
                 sensorId,
