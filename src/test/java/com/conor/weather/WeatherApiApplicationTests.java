@@ -1,4 +1,4 @@
-package com.conor.weatherapi;
+package com.conor.weather;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
