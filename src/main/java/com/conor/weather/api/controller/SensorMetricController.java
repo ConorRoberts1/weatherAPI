@@ -68,25 +68,46 @@ public class SensorMetricController {
         );
     }
 
+
     @GetMapping("/stats")
     public ResponseEntity<?> stats(
-            @RequestParam(required = false) String sensors,   // "1,2,3" or omit = all
-            @RequestParam(required = false) String metrics,   // "temperature,humidity" or omit = all
-            @RequestParam(required = false, defaultValue = "avg") String stat, // min|max|sum|avg
-            @RequestParam(required = false) LocalDateTime start,
-            @RequestParam(required = false) LocalDateTime end
+            @RequestParam(required = false) String sensors,
+            @RequestParam(required = false) String metrics,
+            @RequestParam(required = false, defaultValue = "avg") String stat,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end
     ) {
         // default window: last 24h
         var now = LocalDateTime.now();
         if (start == null || end == null) { end = now; start = now.minusDays(1); }
+
+        var hours = java.time.Duration.between(start, end).toHours();
+        if (hours < 24 || hours > 31 * 24) {
+            return ResponseEntity.badRequest().body(
+                    Map.of("error", "date window must be between 1 and 31 days")
+            );
+        }
+
 
         String statKey = stat.toLowerCase(Locale.ROOT);
         if (!Set.of("min","max","sum","avg").contains(statKey)) {
             return ResponseEntity.badRequest().body(Map.of("error", "stat must be one of min,max,sum,avg"));
         }
 
-        Set<Long> sensorSet  = parseLongCsv(sensors);
+        final Set<Long> sensorSet;
+        try {
+            sensorSet = parseLongCsv(sensors);
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+        }
+
         Set<String> metricSet = parseLowerCsv(metrics);
+        if (metricSet != null && !ALLOWED_METRICS.containsAll(metricSet)) {
+            return ResponseEntity.badRequest().body(
+                    Map.of("error", "metrics must be within " + ALLOWED_METRICS)
+            );
+        }
+
 
         var rows = repo.findByTimestampBetween(start, end).stream()
                 .filter(r -> sensorSet == null || sensorSet.contains(r.getSensorId()))
